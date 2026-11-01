@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Share your location</title>
+<style>
+  :root{--bg:#f5f7f6;--card:#fff;--text:#1b2420;--muted:#5d6b64;--accent:#1faa59;--accent-text:#fff;--err:#b3261e;color-scheme:light}
+  @media (prefers-color-scheme:dark){:root{--bg:#121715;--card:#1c2320;--text:#eef3f0;--muted:#a0b0a8;--err:#ff8a80;color-scheme:dark}}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .card{width:100%;max-width:400px;background:var(--card);border-radius:20px;padding:28px 24px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.08)}
+  .pin{font-size:48px}
+  h1{font-size:22px;margin:8px 0}
+  p{color:var(--muted);line-height:1.5;margin:8px 0}
+  button{width:100%;margin-top:20px;padding:16px;border:0;border-radius:14px;background:var(--accent);color:var(--accent-text);font-size:17px;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.6}
+  #status{min-height:1.4em;margin-top:14px;font-size:14px}
+  .err{color:var(--err)}
+  small{display:block;margin-top:16px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="pin">📍</div>
+  <h1>Share your location</h1>
+  <p>Tap the button below and allow location access. WhatsApp will then open with a message containing your location, ready to send.</p>
+  <button id="btn">Share my location</button>
+  <div id="status" role="status"></div>
+  <button id="fallback" type="button" style="display:none;background:transparent;color:var(--text);border:2px solid var(--accent)">Send it through WhatsApp instead</button>
+  <small>Your location is only used once, to build the message. Nothing is stored on this page, and nothing is sent until you press Send in WhatsApp.</small>
+</div>
+
+<script>
+  // ====== CONFIGURE THIS ======
+  // Your WhatsApp number in international format, digits only (no +, spaces or dashes)
+  const PHONE = "15551234567";
+  // Optional intro text for the message
+  const INTRO = "Hi, this is my location:";
+  // ============================
+
+  const btn = document.getElementById("btn");
+  const statusEl = document.getElementById("status");
+
+  function setStatus(msg, isErr) {
+    statusEl.textContent = msg;
+    statusEl.className = isErr ? "err" : "";
+  }
+
+  const fb = document.getElementById("fallback");
+  function showFallback() { fb.style.display = "block"; }
+  fb.addEventListener("click", () => {
+    const text = "Hi, I couldn’t use the link. I’ll send my location with WhatsApp’s attach (📎) → Location → Send your current location.";
+    window.location.href = `https://wa.me/${PHONE}?text=${encodeURIComponent(text)}`;
+  });
+
+  btn.addEventListener("click", () => {
+    if (!window.isSecureContext) {
+      setStatus("This page must be opened from an https:// link (not a file or http://) for location to work.", true);
+      showFallback();
+      return;
+    }
+    if (!("geolocation" in navigator)) {
+      setStatus("Your browser doesn’t support location sharing.", true);
+      return;
+    }
+    btn.disabled = true;
+    setStatus("Waiting for permission…");
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        const maps = `https://maps.google.com/?q=${latitude},${longitude}`;
+        const text = `${INTRO}\n${maps}\n(accuracy ≈ ${Math.round(accuracy)} m)`;
+        const url = `https://wa.me/${PHONE}?text=${encodeURIComponent(text)}`;
+        setStatus("Opening WhatsApp… press Send to share.");
+        window.location.href = url;
+        setTimeout(() => { btn.disabled = false; }, 3000);
+      },
+      (err) => {
+        btn.disabled = false;
+        const msgs = {
+          1: "Location was blocked. Tap Share again and choose Allow. If no prompt appears, use the WhatsApp option below.",
+          2: "Couldn’t determine your location. Check that GPS/location is on.",
+          3: "Timed out getting your location. Please try again."
+        };
+        setStatus(msgs[err.code] || "Something went wrong.", true);
+        showFallback();
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  });
+</script>
+</body>
+</html>
